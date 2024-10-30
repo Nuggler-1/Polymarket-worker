@@ -1,0 +1,15 @@
+aiohttp==3.9.5
+ccxt==3.0.75
+colorama==0.4.6
+eth_account==0.13.4
+eth_utils==5.0.0
+fake_useragent==1.5.1
+loguru==0.7.0
+playwright==1.48.0
+poly_eip712_structs==0.0.1
+py_order_utils==0.3.2
+questionary==2.0.1
+Requests==2.32.3
+stringtools==3.0.1
+termcolor==2.5.0
+web3==6.5.0
