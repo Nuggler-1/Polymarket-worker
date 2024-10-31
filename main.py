@@ -11,6 +11,7 @@ import random
 import sys
 import questionary
 
+from eth_account import Account as AccountETH
 from relay.relay import RelayAccount
 from binance import binance
 from utils.utils import get_proxy, async_sleep, sleep, get_deposit_wallet, get_contract, build_and_send_tx, clear_file, search_for_erc20_crosschain
@@ -42,7 +43,9 @@ async def withdraw_from_polymarket(private_keys):
             await asyncio.sleep(3)
             page = await account.preapre_page(browser)
             await account.withdraw(browser, page)
-        await async_sleep(WALLET_SLEEP)
+
+        if private_key != private_keys[-1]:     
+            await async_sleep(WALLET_SLEEP)
 
 async def withdraw_to_cex(private_keys): 
 
@@ -58,7 +61,8 @@ async def withdraw_to_cex(private_keys):
             balance = contract.functions.balanceOf(account.address).call()
             tx = contract.functions.transfer(deposit_address, balance)
             sent_tx = build_and_send_tx(web3, account, tx)
-            sleep(WALLET_SLEEP)
+            if private_key != private_keys[-1]: 
+                sleep(WALLET_SLEEP)
         except Exception as e: 
             logger.warning(f'failed to withdraw: {str(e)}')
 
@@ -80,7 +84,8 @@ async def get_polymarket_deposit_addresses(private_keys):
         with open(DEFAULT_POLYMARKET_WALLETS, 'a',encoding='utf-8' ) as f:
             f.write(f'{account.address}:{deposit_wallet}\n')
 
-        await async_sleep([10,20])
+        if private_key != private_keys[-1]: 
+            await async_sleep([10,20])
 
 async def deposit_to_polymarket_relay(private_keys): 
 
@@ -97,13 +102,15 @@ async def deposit_to_polymarket_relay(private_keys):
             continue
 
         tx = await account.bridge_tokens(chain_from, 137, token_from, CHAINS_DATA['POLYGON']['USDC'], recipient=deposit_address)
-        await async_sleep(WALLET_SLEEP)
+
+        if private_key != private_keys[-1]: 
+            await async_sleep(WALLET_SLEEP)
 
 async def approve_deposit_and_enable_trading(private_keys): 
 
     for private_key in private_keys: 
 
-        account = AccountUI(private_key, proxy=get_proxy(private_key,mode='dict'))
+        account = AccountUI(private_key, proxy = get_proxy(private_key, mode = 'dict'))
 
         async with async_playwright() as playwright: 
             browser = await account._init_browser(playwright)
@@ -113,19 +120,21 @@ async def approve_deposit_and_enable_trading(private_keys):
             await account.approve_pending_deposit(browser, page)
             await asyncio.sleep(5)
             await account.approve_tokens(browser, page)
-        
-        await async_sleep([10,20])
 
-def binance_deposit(): 
+        if private_key != private_keys[-1]: 
+            await async_sleep([10,20])
 
-    with open(DEFAULT_POLYMARKET_WALLETS, 'r', encoding='utf-8') as f:
-        polymarket_addresses = f.read().splitlines()
+def binance_deposit(private_keys): 
 
-    for address in polymarket_addresses: 
+    for private_key in private_keys:
+
+        address = get_deposit_wallet(private_key, DEFAULT_POLYMARKET_WALLETS)
         amount = random.uniform(AMOUNT_TO_DEPOSIT[0], AMOUNT_TO_DEPOSIT[1])
         amount = round(amount, random.randrange(0,2))
         binance.binance_withdraw(address, amount, 'USDC', 'MATIC', API_KEY, API_SECRET)
-        sleep(WALLET_SLEEP)
+
+        if private_key != private_keys[-1]: 
+            sleep(WALLET_SLEEP)
 
 
 def main(): 
@@ -147,7 +156,8 @@ def main():
                         "Place bets",
                         "Drop all positions",
                         "Withdraw from polymarket to Polygon", 
-                        "withdraw from Polygon to CEX", 
+                        "withdraw from Polygon to CEX",
+                        "Run specific wallet", 
                         "Exit"
                     ]
                 ).ask()
@@ -167,7 +177,7 @@ def main():
                 logger.opt(raw=True).info('Whoops! Looks like nothing is here...\n')
 
             case "Deposit to polymarket with binance": 
-                binance_deposit()
+                binance_deposit(private_keys)
             
             case "Withdraw from polymarket to Polygon": 
                 asyncio.run(withdraw_from_polymarket(private_keys))
@@ -179,11 +189,25 @@ def main():
                 bets = BetsRunner(private_keys)
                 bets.run_bets()
 
+            case "Run specific wallet": 
+
+                    addresses = [AccountETH.from_key(private_key).address for private_key in private_keys]
+                    choice = questionary.select(
+                        "Select work mode:",
+                        choices=[
+                            *addresses
+                        ]
+                    ).ask()
+
+                    index = addresses.index(choice)
+                    private_keys = [private_keys[index]]
+
             case "Drop all positions": 
                 for private_key in private_keys: 
                     account = AccountAPI(private_key, funder=get_deposit_wallet(private_key, DEFAULT_POLYMARKET_WALLETS), proxy=get_proxy(private_key))
                     account.drop_all_positions()
-                    sleep(WALLET_SLEEP)
+                    if private_key != private_keys[-1]: 
+                        sleep(WALLET_SLEEP)
 
             case "Open forks": 
                 forks = ForkRunner(private_keys,)
