@@ -103,7 +103,7 @@ async def approve_deposit_and_enable_trading(private_keys):
 
     for private_key in private_keys: 
 
-        account = AccountUI(private_key)
+        account = AccountUI(private_key, proxy=get_proxy(private_key,mode='dict'))
 
         async with async_playwright() as playwright: 
             browser = await account._init_browser(playwright)
@@ -127,30 +127,6 @@ def binance_deposit():
         binance.binance_withdraw(address, amount, 'USDC', 'MATIC', API_KEY, API_SECRET)
         sleep(WALLET_SLEEP)
 
-def search_markets(): 
-
-    amount = str(
-        questionary.text("Type amount of events to search (default is 540): \n").ask()
-    )
-    amount = 540 if len(amount) == 0 else int(amount)
-
-    min_size = str(
-        questionary.text("Type min $ size to buy: \n").ask()
-    )
-    min_size = 0 if len(min_size) == 0 else int(min_size) 
-
-    max_size = str(
-        questionary.text("Type max $ size to buy: \n").ask()
-    )
-    max_size = 50 if len(max_size) == 0 else int(max_size) 
-
-    max_price = str(
-        questionary.text("Type max price in cents: \n").ask()
-    )
-    max_price = 0.2 if len(max_price) == 0 else float(max_price) 
-
-    search = Search(amount)
-    asyncio.run(search.user_find(min_size, max_size, max_price))
 
 def main(): 
 
