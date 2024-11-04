@@ -1,5 +1,5 @@
 
-from config import TOTAL_AMOUNT, RPC, MARKET_BETS, PERCENT_OF_BALANCE_TO_BET, WALLET_SLEEP
+from config import TOTAL_AMOUNT, RPC, MARKET_BETS, PERCENT_OF_BALANCE_TO_BET, WALLET_SLEEP, RANDOMIZE
 from vars import CHAINS_DATA
 from utils.utils import get_erc20_balance, error_handler, get_deposit_wallet, sleep, get_proxy, split_list_into_n_chunks
 from utils.constants import DEFAULT_POLYMARKET_WALLETS, DEFAULT_PROXIES
@@ -19,7 +19,9 @@ class BetsRunner():
         
     def run_bets(self, ):
 
-        random.shuffle(self.accounts)
+        if RANDOMIZE:
+            random.shuffle(self.accounts)
+
         accounts_chunks = split_list_into_n_chunks(self.accounts, len(MARKET_BETS))
 
         for account_chunk, market_bet in zip(accounts_chunks, MARKET_BETS): 

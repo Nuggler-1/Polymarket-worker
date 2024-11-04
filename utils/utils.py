@@ -44,7 +44,7 @@ def error_handler(error_msg, retries = ERR_ATTEMPTS):
                     logger.error(f"{error_msg}: {str(e)}")
                     logger.info(f'Retrying in 10 sec. Attempts left: {ERR_ATTEMPTS-i}')
                     time.sleep(10)
-                    if i == ERR_ATTEMPTS-1: 
+                    if i == retries-1: 
                         return 0
         return wrapper
     return decorator
