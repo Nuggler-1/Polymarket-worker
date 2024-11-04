@@ -222,19 +222,6 @@ def main():
                 index = addresses.index(choice)
                 private_keys = [private_keys[index]]
 
-            case "Run specific wallet": 
-
-                addresses = [AccountETH.from_key(private_key).address for private_key in private_keys]
-                choice = questionary.select(
-                    "Select work mode:",
-                    choices=[
-                        *addresses
-                    ]
-                ).ask()
-
-                index = addresses.index(choice)
-                private_keys = [private_keys[index]]
-
             case "Drop all positions": 
                 for private_key in private_keys: 
                     account = AccountAPI(private_key, funder=get_deposit_wallet(private_key, DEFAULT_POLYMARKET_WALLETS), proxy=get_proxy(private_key))
