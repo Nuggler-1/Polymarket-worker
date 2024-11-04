@@ -3,12 +3,16 @@ from eth_account.messages import encode_defunct
 from aiohttp import ClientSession
 from loguru import logger
 from math import ceil
+from playwright.async_api import async_playwright
+import asyncio
 
 from py_clob_client.client import ClobClient
 from py_clob_client.clob_types import OrderArgs, OrderType, OpenOrderParams,BalanceAllowanceParams, AssetType, TradeParams
 from py_clob_client.order_builder.constants import BUY, SELL
+from .account_ui import Account as AccountUI
 
-from utils.utils import error_handler, round_up, round_down
+
+from utils.utils import error_handler, round_up, round_down, async_sleep, get_proxy
 from .constants import HOST, CHAIN_ID
 import requests 
 
@@ -41,6 +45,7 @@ class Account():
         chain_id = CHAIN_ID
         self.proxy = proxy
 
+        self._private_key = private_key
         self.funder = funder
         self.address = EthAccount.from_key(private_key).address
 
@@ -51,7 +56,7 @@ class Account():
     def create_client(self): 
         self.client.set_api_creds(self.client.create_or_derive_api_creds())
 
-    @error_handler('getting market price')
+    @error_handler('getting market price', retries=1)
     def _get_market_price(self, token_id:str, side:str, size:float) :   
         """
         returns price in dollars
@@ -69,9 +74,8 @@ class Account():
             for bid in reversed(resp.bids): 
                 if float(bid.price) * float(bid.size) >= size: 
                     return float(bid.price)
-        
-        logger.warning('No liquidity to make market order')
-        return 0
+                
+        raise Exception('No liquidity to make market order')
     
     @staticmethod
     @error_handler('getting token ids')
@@ -127,6 +131,19 @@ class Account():
             resp = session.get(url+market_id)
             resp_json = resp.json()
             return resp_json['question']
+        
+    async def _set_approves(self,): 
+
+        account = AccountUI(self._private_key, proxy = get_proxy(self._private_key, mode = 'dict'))
+
+        async with async_playwright() as playwright: 
+            browser = await account._init_browser(playwright)
+            await async_sleep([3,5])
+            page = await account.preapre_page(browser)
+
+            await account.approve_pending_deposit(browser, page)
+            await async_sleep([5,10])
+            await account.approve_tokens(browser, page)
 
     @error_handler('buy limit', retries=1)
     def limit_buy(self,token_id:str, price: float | int | str, size: float | int |str, order_type: OrderType = OrderType.GTC):
@@ -134,6 +151,7 @@ class Account():
         price in cents!
         
         """
+   
         if order_type == OrderType.FOK: 
             price=round_up(float(price)/100, 2)
         else: 
@@ -154,6 +172,7 @@ class Account():
         resp = self.client.post_order(signed_order, order_type)
         
         return resp
+        
     
     @error_handler('sell limit', retries=1)
     def limit_sell(self, token_id:str, price: float | int | str, size: float | int |str, order_type: OrderType = OrderType.GTC): 
@@ -161,6 +180,7 @@ class Account():
         price in cents!
 
         """
+
         price=round(float(price)/100, 3)
         size=round_down(float(size), 2)
         logger.info(f'{self.address} - placing sell order for {size} shares at {price*100} cents')
@@ -170,13 +190,16 @@ class Account():
             side=SELL,
             token_id=token_id
         )
-  
+
         signed_order = self.client.create_order(order_args)
 
         ## Good Till Cancel Order
         resp = self.client.post_order(signed_order, order_type)
         
         return resp
+
+
+            
     
     @error_handler('market order')
     def market_sell(self, token_id:str, size:float): 
@@ -304,7 +327,9 @@ class Account():
 
             if position['curPrice'] * size > 0.1:
                 logger.opt(colors=True).info(f'{self.address} - Dropping position <red>{position["title"]}</red> with size {size}')
-                price = round(self._get_market_price(token_id, 'SELL', size*price),3)
+                price = self._get_market_price(token_id, 'SELL', size*price)
+                if price == 0: 
+                    continue
                 assert self.limit_sell(token_id, price*100, size)['status'] == 'matched', 'Failed to fill order'
                 logger.success(f'{self.address} - order filled')
             else: 

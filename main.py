@@ -14,10 +14,10 @@ import questionary
 from eth_account import Account as AccountETH
 from relay.relay import RelayAccount
 from binance import binance
-from utils.utils import get_proxy, async_sleep, sleep, get_deposit_wallet, get_contract, build_and_send_tx, clear_file, search_for_erc20_crosschain
+from utils.utils import get_proxy, async_sleep, sleep, get_deposit_wallet, get_contract, build_and_send_tx, clear_file, search_for_erc20_crosschain, split_list_into_n_chunks
 from utils.constants import *
 from config import *
-from vars import CHAINS_DATA, ERC20_ABI, logo
+from vars import CHAINS_DATA, ERC20_ABI
 
 
 logger.remove()
@@ -124,6 +124,22 @@ async def approve_deposit_and_enable_trading(private_keys):
         if private_key != private_keys[-1]: 
             await async_sleep([10,20])
 
+async def claim_all_bets(private_keys): 
+
+    for private_key in private_keys: 
+
+        account = AccountUI(private_key, proxy = get_proxy(private_key, mode = 'dict'))
+
+        async with async_playwright() as playwright: 
+            browser = await account._init_browser(playwright)
+            await asyncio.sleep(3)
+            page = await account.preapre_page(browser)
+
+            await account.claim_bets(browser, page)
+
+        if private_key != private_keys[-1]: 
+            await async_sleep(WALLET_SLEEP)
+
 def binance_deposit(private_keys): 
 
     for private_key in private_keys:
@@ -155,6 +171,7 @@ def main():
                         "Open forks",
                         "Place bets",
                         "Drop all positions",
+                        "Claim all bets",
                         "Withdraw from polymarket to Polygon", 
                         "withdraw from Polygon to CEX",
                         "Run specific wallet", 
@@ -188,19 +205,22 @@ def main():
             case "Place bets": 
                 bets = BetsRunner(private_keys)
                 bets.run_bets()
+    
+            case "Claim all bets": 
+                asyncio.run(claim_all_bets(private_keys))
 
             case "Run specific wallet": 
 
-                    addresses = [AccountETH.from_key(private_key).address for private_key in private_keys]
-                    choice = questionary.select(
-                        "Select work mode:",
-                        choices=[
-                            *addresses
-                        ]
-                    ).ask()
+                addresses = [AccountETH.from_key(private_key).address for private_key in private_keys]
+                choice = questionary.select(
+                    "Select work mode:",
+                    choices=[
+                        *addresses
+                    ]
+                ).ask()
 
-                    index = addresses.index(choice)
-                    private_keys = [private_keys[index]]
+                index = addresses.index(choice)
+                private_keys = [private_keys[index]]
 
             case "Drop all positions": 
                 for private_key in private_keys: 

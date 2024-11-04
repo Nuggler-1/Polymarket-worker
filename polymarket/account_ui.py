@@ -34,6 +34,9 @@ class Account():
             '--disable-blink-features=AutomationControlled',
             f"--disable-extensions-except={os.path.abspath('Metamask')}",
             f"--load-extension={os.path.abspath('Metamask')}",
+            f"--disable-infobars"
+            
+
 
         ]
 
@@ -78,7 +81,13 @@ class Account():
             try: 
                 if popup_window == None: 
                     break
+                
+                polygon_message_button = popup_window.locator('h6.mm-box.mm-text.mm-text--body-sm.mm-box--color-inherit')
+                if await polygon_message_button.count() > 0: 
+                    await polygon_message_button.nth(1).click(timeout = 5000) 
+
                 await popup_window.click('button.button.btn--rounded.btn-primary', timeout = 7000)
+
             except Exception as e:
                 await asyncio.sleep(3)
                 popup_window = await switch_to_page_by_title(browser, 'MetaMask')
@@ -189,6 +198,41 @@ class Account():
         page = await self._visit_polymarket(browser)
 
         return page
+    
+    @async_error_handler('claiming bets')
+    async def claim_bets(self, browser, page):
+
+        await page.goto(POLYMARKET_URL+'portfolio')
+        await asyncio.sleep(3)
+        logger.info(f'{self.address}: Checking for bets to claim')
+
+        claim_buttons = page.locator('a.c-gBrBnR.c-gBrBnR-fbCeQT-variant-quaternary.c-gBrBnR-ehsAZX-height-md.c-gBrBnR-eJubdF-fontWeight-bold.c-gBrBnR-dRRWyf-fontSize-md.c-gBrBnR-gaXLJU-cv.c-gBrBnR-ihilFlW-css')
+        events_to_claim = []
+        if await claim_buttons.count() > 0: 
+            for i in range(await claim_buttons.count()):
+                event_link= await claim_buttons.nth(i).get_attribute('href')
+                events_to_claim.append(POLYMARKET_URL+event_link)
+        else: 
+            logger.warning(f'{self.address}: No bets to claim')
+            return None
+        
+        for event in events_to_claim: 
+            await page.goto(event)
+            await asyncio.sleep(5)
+
+            auth_buttons = await page.locator('button.c-gBrBnR.c-loKlDK.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-bxvuTL-fontWeight-medium.c-gBrBnR-dRRWyf-fontSize-md.c-gBrBnR-icwKLDw-css').all()
+            if len(auth_buttons) > 1: 
+                for btn in auth_buttons: 
+                    await btn.click(timeout = 5000)
+                    await self._click_through_metamask_popup(browser, popup_await=10)
+                    await asyncio.sleep(2)
+
+            claim_button = page.locator('div.c-jpvvtk') 
+            if await claim_button.count() > 0: 
+                await claim_button.click(timeout = 5000)
+                await self._click_through_metamask_popup(browser)
+                logger.success(f'{self.address}: Bet {event.split("/")[-1]} claimed')
+                await asyncio.sleep(3) 
     
     @async_error_handler('approving tokens')
     async def approve_tokens(self, browser, page):
