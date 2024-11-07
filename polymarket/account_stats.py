@@ -31,7 +31,7 @@ class WalletStats():
         return round(float(volume), 2)
     
 
-    @error_handler('Failed to check balance')
+    @async_error_handler('Failed to check balance')
     async def _check_balance(self): 
 
         web3 = Web3(Web3.HTTPProvider(RPC['POLYGON']))
@@ -96,7 +96,7 @@ class WalletStats():
         amount = resp_json['traded']
         return amount
     
-    async_error_handler('Failed to parse nickname')
+    @async_error_handler('Failed to parse nickname')
     async def _get_nickname(self): 
 
         url = f'https://polymarket.com/api/profile/userData?address={self.proxy_address}'
