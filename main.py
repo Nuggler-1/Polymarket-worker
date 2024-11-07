@@ -211,6 +211,10 @@ def main():
     with open(DEFAULT_PRIVATE_KEYS, 'r', encoding='utf-8') as f: 
         private_keys = f.read().splitlines()
 
+    if len(private_keys) == 0: 
+        logger.warning('Please upload at least one private key!')
+        sys.exit()
+
     while True:
 
         choice = questionary.select(

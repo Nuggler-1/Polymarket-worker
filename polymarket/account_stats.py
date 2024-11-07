@@ -32,11 +32,18 @@ class WalletStats():
     
 
     @error_handler('Failed to check balance')
-    def _check_balance(self): 
+    async def _check_balance(self): 
 
         web3 = Web3(Web3.HTTPProvider(RPC['POLYGON']))
         balance = get_erc20_balance(web3, self.proxy_address,CHAINS_DATA['POLYGON']['USDC.e'])
-        return balance 
+
+        url_balance = f'https://data-api.polymarket.com/value?user={self.proxy_address}'
+        async with ClientSession() as session: 
+            async with session.get(url_balance, proxy=self.proxy) as response: 
+                resp_json = await response.json()
+
+        balance = resp_json[0]['value'] + balance
+        return round(float(balance), 2) 
     
     @async_error_handler('Failed to check positions')
     async def _check_positions(self): 
@@ -104,7 +111,7 @@ class WalletStats():
 
         nickname = await self._get_nickname()
         volume = await self._check_volume()
-        balance = self._check_balance()
+        balance = await self._check_balance()
         positions = await self._check_positions()
         profit = await self._check_total_profit()
         #markets_traded = await self._check_markets_traded()
