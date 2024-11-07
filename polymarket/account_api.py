@@ -47,6 +47,7 @@ class Account():
 
         self._private_key = private_key
         self.funder = funder
+        assert len(funder) == 32, 'check user_data/polymarket_addresses.txt'
         self.address = EthAccount.from_key(private_key).address
 
         self.client = ClobClient(host, chain_id= chain_id, key = private_key,  signature_type=2, funder=funder, proxy=proxy)

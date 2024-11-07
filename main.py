@@ -3,6 +3,7 @@ from polymarket.account_api import Account as AccountAPI
 from playwright.async_api import async_playwright
 from polymarket.fork_runner import ForkRunner
 from polymarket.bets_runner import BetsRunner
+from polymarket.account_stats import WalletStats
 from web3 import Web3 
 from loguru import logger
 
@@ -11,10 +12,12 @@ import random
 import sys
 import questionary
 
+from rich.console import Console
+from rich.table import Table
 from eth_account import Account as AccountETH
 from relay.relay import RelayAccount
 from binance import binance
-from utils.utils import get_proxy, async_sleep, sleep, get_deposit_wallet, get_contract, build_and_send_tx, clear_file, search_for_erc20_crosschain, split_list_into_n_chunks
+from utils.utils import get_proxy, async_sleep, sleep, get_deposit_wallet, get_contract, build_and_send_tx, clear_file, search_for_erc20_crosschain, split_list_into_sized_chunks
 from utils.constants import *
 from config import *
 from vars import CHAINS_DATA, ERC20_ABI, logo
@@ -152,6 +155,56 @@ def binance_deposit(private_keys):
         if private_key != private_keys[-1]: 
             sleep(WALLET_SLEEP)
 
+async def check_stats(private_keys): 
+
+
+    table = Table()
+    table.add_column("Address")
+    table.add_column("Polymarket address")
+    table.add_column("Nick")
+    table.add_column('Balance')
+    table.add_column("Volume")
+    table.add_column("Profit")
+    table.add_column("Active positions")
+
+    wallet_chunks = split_list_into_sized_chunks(private_keys, 15)
+    for chunk in wallet_chunks: 
+        tasks = []  
+        for private_key in chunk: 
+            address = AccountETH.from_key(private_key).address
+            proxy_wallet = get_deposit_wallet(private_key, DEFAULT_POLYMARKET_WALLETS)
+            proxy = get_proxy(private_key)
+            account = WalletStats(address, proxy_wallet, proxy['http'] if proxy != None else None)
+            tasks.append(asyncio.create_task(account.display_stats(table)))
+        await asyncio.gather(*tasks)
+
+    console = Console()
+    console.print(table)
+
+    """
+    for private_key in private_keys:
+        print() 
+        address = AccountETH.from_key(private_key).address
+        proxy_wallet = get_deposit_wallet(private_key, DEFAULT_POLYMARKET_WALLETS)
+        proxy = get_proxy(private_key)
+        account = WalletStats(address, proxy_wallet, proxy['http'] if proxy != None else None)
+
+        await account.display_stats(table)
+
+    console = Console()
+    console.print(table)
+    """
+
+async def display_positions(private_keys): 
+
+    for private_key in private_keys: 
+        address = AccountETH.from_key(private_key).address
+        proxy_wallet = get_deposit_wallet(private_key, DEFAULT_POLYMARKET_WALLETS)
+        proxy = get_proxy(private_key)
+        account = WalletStats(address, proxy_wallet, proxy['http'] if proxy != None else None)
+        await account.display_positions()
+        print()
+
 
 def main(): 
 
@@ -174,7 +227,11 @@ def main():
                         "Claim all bets",
                         "Withdraw from polymarket to Polygon", 
                         "withdraw from Polygon to CEX",
-                        "Run specific wallet", 
+                        "Check stats",
+                        'Check open positions',
+                        "Run specific wallets", 
+                        "Run range of wallets",
+                        "Reset selection of wallets",
                         "Exit"
                     ]
                 ).ask()
@@ -209,18 +266,61 @@ def main():
             case "Claim all bets": 
                 asyncio.run(claim_all_bets(private_keys))
 
-            case "Run specific wallet": 
+            case "Run specific wallets": 
+                while True: 
+                    addresses = [AccountETH.from_key(private_key).address for private_key in private_keys]
+                    choice = questionary.checkbox(
+                        "Select wallets to run:",
+                        choices=[
+                            *addresses
+                        ]
+                    ).ask()
 
-                addresses = [AccountETH.from_key(private_key).address for private_key in private_keys]
-                choice = questionary.select(
-                    "Select work mode:",
-                    choices=[
-                        *addresses
-                    ]
-                ).ask()
 
-                index = addresses.index(choice)
-                private_keys = [private_keys[index]]
+                    if len(choice) == 0: 
+                        logger.warning('Please select at least one wallet (USE SPACE TO SELECT)')
+                        continue    
+
+                    new_private_keys = []
+                    for address in choice: 
+                        index = addresses.index(address)
+                        new_private_keys.append(private_keys[index])
+
+                    private_keys = new_private_keys
+                    break
+
+            case "Run range of wallets": 
+
+                while True: 
+
+                    addresses = [AccountETH.from_key(private_key).address for private_key in private_keys]
+                    choice = questionary.checkbox(
+                        "Select range of wallets to run (first and last):",
+                        choices=[
+                            *addresses
+                        ]
+                    ).ask()
+
+                    if len(choice) !=  2: 
+                        logger.warning('Please select first and last wallet in range (ONLY 2 WALLETS)')
+                        continue
+
+                    first_index = addresses.index(choice[0])
+                    last_index = addresses.index(choice[1])
+
+                    private_keys = private_keys[first_index:last_index+1]
+                    break
+            
+            case "Reset selection of wallets": 
+
+                with open(DEFAULT_PRIVATE_KEYS, 'r', encoding='utf-8') as f: 
+                    private_keys = f.read().splitlines()
+
+            case "Check stats": 
+                asyncio.run(check_stats(private_keys))
+
+            case "Check open positions": 
+                asyncio.run(display_positions(private_keys))
 
             case "Drop all positions": 
                 for private_key in private_keys: 
