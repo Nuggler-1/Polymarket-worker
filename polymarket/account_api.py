@@ -4,7 +4,7 @@ from aiohttp import ClientSession
 from loguru import logger
 from math import ceil
 from playwright.async_api import async_playwright
-import asyncio
+import sys
 
 from py_clob_client.client import ClobClient
 from py_clob_client.clob_types import OrderArgs, OrderType, OpenOrderParams,BalanceAllowanceParams, AssetType, TradeParams
@@ -46,9 +46,12 @@ class Account():
         self.proxy = proxy
 
         self._private_key = private_key
-        self.funder = funder
-        assert len(funder) == 32, 'check user_data/polymarket_addresses.txt'
         self.address = EthAccount.from_key(private_key).address
+        if len(funder) == 42: 
+            self.funder = funder
+        else: 
+            logger.error(f'check user_data/polymarket_addresses.txt')
+            sys.exit()
 
         self.client = ClobClient(host, chain_id= chain_id, key = private_key,  signature_type=2, funder=funder, proxy=proxy)
         self.create_client()
