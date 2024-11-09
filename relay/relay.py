@@ -17,7 +17,7 @@ class RelayAccount():
     async def _quote(self,web3, account, amount,chain_to, chain_from, token_to, token_from, recipient):
     
         contract = get_contract(web3, account.address,ERC20_ABI)
-        balance = contract.functions.balanceOf(account.address)
+        balance = contract.functions.balanceOf(account.address).call()
 
         if amount: 
             amount = balance * random.uniform(amount[0], amount[1])/100 
