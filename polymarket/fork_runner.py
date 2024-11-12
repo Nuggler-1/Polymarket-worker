@@ -1,6 +1,7 @@
 import random
 import questionary
 import asyncio
+import sys
 from web3 import Web3
 from loguru import logger
 from .account_api import Account as AccountAPI
@@ -24,6 +25,7 @@ class ForkRunner(Search):
         self.events_to_check, self.min_liquidity, self.max_loss, self.max_price_difference = self._ask_data()
 
         self.web3 = Web3(Web3.HTTPProvider(RPC['POLYGON']))
+        logger.info(f'Creating list of accounts - it might take a while...')
         for key in private_keys:
             self.accounts.append(AccountAPI(key, funder = get_deposit_wallet(key, deposit_addresses=DEFAULT_POLYMARKET_WALLETS), proxy = get_proxy(key) ) )
 
@@ -67,7 +69,8 @@ class ForkRunner(Search):
     async def _find_accounts(self,): 
 
         main_account = None
-        hedge_account = None
+        hedge_account_1 = None
+        hedge_account_2 = None
         total_amount = random.uniform(TOTAL_AMOUNT[0], TOTAL_AMOUNT[1])
 
         print()
@@ -84,6 +87,8 @@ class ForkRunner(Search):
 
         main_amount = main_amount + main_amount * deviation
         hedge_amount = hedge_amount + hedge_amount * deviation
+        hedge_amount_1 = hedge_amount * random.uniform(0.4,0.6)
+        hedge_amount_2 = hedge_amount - hedge_amount_1
 
         random.shuffle(self.accounts)
         for account in self.accounts:
@@ -96,19 +101,29 @@ class ForkRunner(Search):
         random.shuffle(self.accounts)
         for account in self.accounts:
             balance = get_erc20_balance(self.web3, account.funder, CHAINS_DATA['POLYGON']['USDC.e'])
-            if balance >= hedge_amount:
-                hedge_account = account
+            if balance >= hedge_amount_1:
+                hedge_account_1 = account
                 self.accounts.remove(account)
                 break
 
-        if main_account is None or hedge_account is None:
+        random.shuffle(self.accounts)
+        for account in self.accounts:
+            balance = get_erc20_balance(self.web3, account.funder, CHAINS_DATA['POLYGON']['USDC.e'])
+            if balance >= hedge_amount_1:
+                hedge_account_2 = account
+                self.accounts.remove(account)
+                break
+
+        if main_account is None or hedge_account_1 is None or hedge_account_2 is None:
             return None
         else:
             return {
                 'main_account': main_account,
-                'hedge_account': hedge_account,
+                'hedge_account_1': hedge_account_1,
+                'hedge_account_2': hedge_account_2,
                 'main_amount': main_amount,
-                'hedge_amount': hedge_amount,
+                'hedge_amount_1': hedge_amount_1,
+                'hedge_amount_2': hedge_amount_2,
                 'main_token_id': main_token_id,
                 'hedge_token_id': hedge_token_id
             }
@@ -146,29 +161,35 @@ class ForkRunner(Search):
                 continue
 
             main_account = data['main_account']
-            hedge_account = data['hedge_account']
+            hedge_account_1 = data['hedge_account_1']
+            hedge_account_2 = data['hedge_account_2']
             main_amount = data['main_amount']
-            hedge_amount = data['hedge_amount']
+            hedge_amount_1 = data['hedge_amount_1']
+            hedge_amount_2 = data['hedge_amount_2']
             main_token_id = data['main_token_id']
             hedge_token_id = data['hedge_token_id'] 
 
-            logger.opt(colors=True).info(f'Account pair <cyan><bold>{main_account.address}</bold></cyan> and <cyan><bold>{hedge_account.address}</bold></cyan>')
-
+            logger.opt(colors=True).info(f'Starting accounts with <cyan><bold>{main_account.address}</bold></cyan> as main side')
+            logger.opt(colors=True).info(f'And <magenta><bold>{hedge_account_1.address}</bold></magenta> & <magenta><bold>{hedge_account_2.address}</bold></magenta> as hedge side')
             order = main_account.market_buy(main_token_id, main_amount)
             if not order: 
                 logger.warning(f'{main_account.address} - Main order failed to fill')
                 continue 
 
             sleep(SLEEP_BETWEEN_WALLETS_IN_FORK)
+            order_hedge_1 = hedge_account_1.market_buy(hedge_token_id, hedge_amount_1)
+            sleep(SLEEP_BETWEEN_WALLETS_IN_FORK)
+            order_hedge_2 = hedge_account_2.market_buy(hedge_token_id, hedge_amount_2)
 
-            order_hedge = hedge_account.market_buy(hedge_token_id, hedge_amount)
-            if not order_hedge: 
-                logger.warning(f'{hedge_account.address} - Hedge order failed to fill')
+            if not order_hedge_1 or not order_hedge_2: 
+                logger.warning(f'{hedge_account_1.address if not order_hedge_1 else hedge_account_2.address} - Hedge order failed to fill')
                 logger.info(f'Closing all active positions on market in pair')
                 if not main_account.sell_all_positions_on_market(main_token_id):
                     logger.warning(f'{main_account.address} - Failed to close all positions on market, please check manually')
-                if not hedge_account.sell_all_positions_on_market(hedge_token_id):
-                    logger.warning(f'{hedge_account.address} - Failed to close all positions on market, please check manually')
+                if not hedge_account_1.sell_all_positions_on_market(hedge_token_id):
+                    logger.warning(f'{hedge_account_1.address} - Failed to close all positions on market, please check manually')
+                if not hedge_account_2.sell_all_positions_on_market(hedge_token_id):
+                    logger.warning(f'{hedge_account_2.address} - Failed to close all positions on market, please check manually')
                 continue 
 
             sleep(SLEEP_BETWEEN_FORKS)

@@ -125,6 +125,7 @@ class WalletStats():
         logger.opt(colors=True).info(f'Volume: {volume}')
         total_profit_msg = f'Total profit: <green>{profit}</green>' if profit > 0 else f'Total profit: <red>{profit}</red>'
         logger.opt(colors=True).info(total_profit_msg)
+        print()
         #logger.opt(colors=True).info(f'Markets traded: {markets_traded}')
        
         # Add rows with colored specific values

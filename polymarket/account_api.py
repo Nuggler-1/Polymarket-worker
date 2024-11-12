@@ -297,16 +297,11 @@ class Account():
             return float(resp.asks[-1].size)
     
     @error_handler('selling all positions on market')
-    def sell_all_positions_on_market(self, token_ids:dict): 
-
-        if not token_ids:
-            logger.warning(f'No positions found in market ')
-            return 1
+    def sell_all_positions_on_market(self, token_id): 
         
-        for token_id in list(token_ids.values()): 
-            size = self.get_position_size(token_id)
-            price = self._get_market_price(token_id, SELL, size)
-            assert self.limit_sell(token_id, price, size, order_type = OrderType.FOK)['status'] == 'matched', 'Failed to fill order'
+        size = self.get_position_size(token_id)
+        price = self._get_market_price(token_id, SELL, size)
+        assert self.limit_sell(token_id, price, size, order_type = OrderType.FOK)['status'] == 'matched', 'Failed to fill order'
         
         return 1
             
