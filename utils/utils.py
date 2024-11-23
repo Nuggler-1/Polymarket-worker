@@ -328,10 +328,10 @@ def get_proxy(private,mode ='http' ):
             
     n = privates.index(str(private))
     proxy = proxies[n]
-    if mode == 'http':
+    if mode == 'http': 
         proxy = {
-            'http': f'http://{proxy}',
-            'https':f'http://{proxy}'
+            'http': f'{PROXY_MODE.lower()}://{proxy}',
+            'https':f'{PROXY_MODE.lower()}://{proxy}'
         }
     else: 
         loginpass, ipport=proxy.split('@')

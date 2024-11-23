@@ -5,7 +5,7 @@ from eth_account import Account as ethAccount
 
 from .utils import switch_to_page_by_title, close_page_by_title
 from .constants import POLYMARKET_URL
-from config import AMOUNT_TO_WITHDRAW, WITHDRAW_ALL, TIMEOUT, ERR_ATTEMPTS
+from config import AMOUNT_TO_WITHDRAW, WITHDRAW_ALL, TIMEOUT, ERR_ATTEMPTS, PROXY_MODE
 from utils.utils import generate_name, async_error_handler
 
 import os 
@@ -51,7 +51,7 @@ class Account():
             headless=False,
             user_agent=self.ua,
             proxy={
-                "server": f"http://{self.proxy['address']}:{self.proxy['port']}",
+                "server": f"{PROXY_MODE.lower()}://{self.proxy['address']}:{self.proxy['port']}",
                 "username": self.proxy['login'],
                 "password": self.proxy['password']
             } if self.proxy is not None else self.proxy,
