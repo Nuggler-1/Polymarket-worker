@@ -161,6 +161,12 @@ class Account():
                 close_btn = page.locator('button.c-dNoRFn').nth(1)
                 if close_btn: 
                     await close_btn.click()
+
+                restricted = await self._check_element_exists_and_visible(page, 'button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-ibQoyvR-css', timeout = TIMEOUT)
+                if restricted:                 
+                    btn = await page.locator('button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-ibQoyvR-css').all()
+                    await btn.click(timeout = TIMEOUT)
+                    
                 await asyncio.sleep(10)
                 if i == 2: 
                     return None
@@ -199,7 +205,7 @@ class Account():
 
         for _ in range(ERR_ATTEMPTS):
             try:
-                await page.goto(url,wait_until="networkidle", timeout = timeout)
+                await page.goto(url,wait_until="load", timeout = timeout)
                 return 
             except Exception:
                 await asyncio.sleep(3)
@@ -246,7 +252,7 @@ class Account():
                     await asyncio.sleep(2)
 
             restricted = await self._check_element_exists_and_visible(page, 'button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-ibQoyvR-css', timeout = TIMEOUT)
-            if restricted:
+            if restricted:                 
                 btn = await page.locator('button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-ibQoyvR-css').all()
                 await btn.click(timeout = TIMEOUT)
                 
