@@ -233,7 +233,7 @@ def get_deposit_wallet(private_key, deposit_addresses=DEFAULT_DEPOSIT_ADDRESSES)
        privates = f.read().splitlines()
             
     if len(OKX_addresses) != len(privates): 
-        logger.error('privates don\'t match deposit addresses')
+        logger.error('privates don\'t match deposit addresses or polymarket proxy addresses')
         sys.exit()
 
     n = privates.index(str(private_key))
@@ -317,9 +317,6 @@ def check_transaction(web3, hash_tx):
 def get_proxy(private,mode ='http' ): 
 
     check_proxy()
-
-    if '0x' in private:
-        private = private[2:]
 
     with open(DEFAULT_PROXIES, 'r') as f: 
         proxies = f.read().splitlines()

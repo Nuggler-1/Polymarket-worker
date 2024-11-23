@@ -301,7 +301,7 @@ class Account():
         
         size = self.get_position_size(token_id)
         price = self._get_market_price(token_id, SELL, size)
-        assert self.limit_sell(token_id, price, size, order_type = OrderType.FOK)['status'] == 'matched', 'Failed to fill order'
+        assert self.limit_sell(token_id, price*100, size, order_type = OrderType.FOK)['status'] == 'matched', 'Failed to fill order'
         
         return 1
             
