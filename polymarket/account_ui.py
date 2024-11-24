@@ -248,7 +248,7 @@ class Account():
                 auth_buttons = await page.locator('button.c-gBrBnR.c-loKlDK.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-bxvuTL-fontWeight-medium.c-gBrBnR-dRRWyf-fontSize-md.c-gBrBnR-icwKLDw-css').all()
                 for btn in auth_buttons: 
                     await btn.click(timeout = TIMEOUT)
-                    await self._click_through_metamask_popup(browser, popup_await=10)
+                    await self._click_through_metamask_popup(browser)
                     await asyncio.sleep(2)
 
             restricted = await self._check_element_exists_and_visible(page, 'button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-ibQoyvR-css', timeout = TIMEOUT)
@@ -275,12 +275,12 @@ class Account():
             buttons = await page.locator('button.c-gBrBnR.c-loKlDK.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-bxvuTL-fontWeight-medium.c-gBrBnR-dRRWyf-fontSize-md.c-gBrBnR-icwKLDw-css').all()
             if len(buttons) > 1:
                 await buttons[0].click(timeout = TIMEOUT)
-                await self._click_through_metamask_popup(browser, popup_await=10)
+                await self._click_through_metamask_popup(browser)
                 await asyncio.sleep(2)
 
                 button = page.locator('button.c-gBrBnR.c-loKlDK.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-bxvuTL-fontWeight-medium.c-gBrBnR-dRRWyf-fontSize-md.c-gBrBnR-icwKLDw-css')
                 await button.click(timeout = TIMEOUT)
-                await self._click_through_metamask_popup(browser, popup_await=10)
+                await self._click_through_metamask_popup(browser)
             else: 
                 logger.warning(f'{self.address}: No approve needed')
 
@@ -319,7 +319,7 @@ class Account():
         try: 
             await page.click('p.c-dqzIym.c-dqzIym-fxyRaa-color-normal.c-dqzIym-cTvRMP-spacing-normal.c-dqzIym-iIobgq-weight-medium.c-dqzIym-hzzdKO-size-md.c-dqzIym-ieXspgQ-css', timeout = TIMEOUT)
             await page.click('button.c-hDtDII.c-hDtDII-fcAbGk-color-blue.c-hDtDII-kCmBzA-async-true.c-hDtDII-icSrXKB-css.c-PJLV', timeout = TIMEOUT)
-            await self._click_through_metamask_popup(browser, popup_await=10)
+            await self._click_through_metamask_popup(browser)
 
             logger.success(f'{self.address}: Deposit confirmed')
             return 1
@@ -347,7 +347,7 @@ class Account():
                 await input.fill(str(amount))
             
             await page.click('button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-eBERDr-height-lg.c-gBrBnR-dRRWyf-fontSize-md.c-gBrBnR-igULOkw-css', timeout = TIMEOUT)
-            await self._click_through_metamask_popup(browser, popup_await=10)
+            await self._click_through_metamask_popup(browser)
 
             logger.success(f'{self.address}: Withdrawal completed')
             return 1
