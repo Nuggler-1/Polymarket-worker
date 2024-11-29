@@ -137,11 +137,12 @@ class Account():
     @async_error_handler('wallet connection to polymarket',)
     async def _connect_polymarket(self, browser):
         
-        page = await browser.new_page()
-        await self._load_page(page, POLYMARKET_URL)
-        
         for i in range(3):
             try:
+
+                page = await browser.new_page()
+                await self._load_page(page, POLYMARKET_URL)
+
                 connect_btn = await page.wait_for_selector("xpath=//button[text()='Sign Up']", timeout = TIMEOUT)
                 await connect_btn.click()
 
