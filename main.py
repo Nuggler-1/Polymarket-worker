@@ -11,6 +11,7 @@ import asyncio
 import random
 import sys
 import questionary
+import os
 
 from rich.console import Console
 from rich.table import Table
@@ -228,6 +229,7 @@ def main():
                         "Open forks",
                         "Place bets",
                         "Drop all positions",
+                        "Drop all forks",
                         "Claim all bets",
                         "Withdraw from polymarket to Polygon", 
                         "withdraw from Polygon to CEX",
@@ -333,9 +335,41 @@ def main():
                     if private_key != private_keys[-1]: 
                         sleep(WALLET_SLEEP)
 
+            case "Drop all forks":
+                # Открываем файл с сохранёнными вилками
+                with open(SAVED_FORK_WALLETS, "r") as f:
+                    forks = [line.strip().split(",") for line in f.readlines()]
+                random.shuffle(forks)
+                for fork in forks:
+                    random.shuffle(fork)
+                    #print(f"Processing fork: {fork}")
+                    for private_key in fork:
+                        #print(f"Dropping positions for key: {private_key}")
+                        account = AccountAPI(private_key, funder=get_deposit_wallet(private_key, DEFAULT_POLYMARKET_WALLETS), proxy=get_proxy(private_key))
+                        account.drop_all_positions()
+                        if private_key != fork[-1]:
+                            sleep(CLOSE_WALLET_SLEEP_IN_FORK)
+                    if fork != forks[-1]:
+                        sleep(CLOSE_WALLET_SLEEP_BETWEEN_FORKS)
+
             case "Open forks": 
+                # Очищаем файл с сохранёнными вилками
+                if os.path.exists(SAVED_FORK_WALLETS):
+                    with open(SAVED_FORK_WALLETS, 'w') as f:
+                        pass  # Просто открываем файл в режиме записи, это очищает его содержимое
+                    print(f"Файл {SAVED_FORK_WALLETS} очищен.")
+                # Запускаем вилки
                 forks = ForkRunner(private_keys,)
                 asyncio.run(forks.run_forks())
+                # На всякий случай делаем бэкап файла с сохранёнными вилками
+                backup_index = 1
+                while True:
+                    backup_filename = f"saved_fork_wallets_backup_{backup_index}.txt"
+                    if not os.path.exists(backup_filename):  # Проверяем, существует ли файл
+                        break
+                    backup_index += 1
+                with open(SAVED_FORK_WALLETS, 'r') as original_file, open(backup_filename, 'w') as backup_file:
+                    backup_file.write(original_file.read())
 
             case "Exit": 
                 sys.exit()
