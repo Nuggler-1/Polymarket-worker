@@ -180,7 +180,23 @@ async def check_stats(private_keys):
 
     console = Console()
     console.print(table)
+    total_profit = 0
+    total_balance = 0
 
+    cells = table.columns[5].cells
+    for profit in cells:
+        total_profit += float(str(profit))
+    total_profit = round(total_profit, 2)
+
+    cells = table.columns[3].cells
+    for balance in cells:
+        total_balance += float(str(balance))
+    total_balance = round(total_balance, 2)
+    
+    print()
+    logger.opt(colors=True).info(f"Total Profit: {'<green>' + str(total_profit) + '</green>' if total_profit > 0 else '<red>' + str(total_profit) + '</red>'}")
+    logger.info(f"Total Balance: {total_balance}")
+    print()
     """
     for private_key in private_keys:
         print() 
@@ -222,9 +238,9 @@ def main():
                     choices=[
                         "Get polymarket deposit addresses", 
                         "Deposit to polymarket with binance",
-                        "Deposit to polymarket via relay",
+                        #"Deposit to polymarket via relay",
                         "Approve deposit and enable trading",
-                        "[REDACTED]",
+                        #"[REDACTED]",
                         "Open forks",
                         "Place bets",
                         "Drop all positions",

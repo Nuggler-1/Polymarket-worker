@@ -94,7 +94,7 @@ class Account():
     @async_error_handler('preparing wallet')
     async def _prepare_wallet(self, browser):
 
-        page = await switch_to_page_by_title(browser, 'MetaMask', timeout = 4*TIMEOUT)
+        page = await switch_to_page_by_title(browser , 'MetaMask', timeout = 4*TIMEOUT/1_000)
         await self._close_empty_pages(browser)
         
         await page.click('input.onboarding__terms-checkbox', timeout = TIMEOUT)
@@ -146,27 +146,33 @@ class Account():
                 connect_btn = await page.wait_for_selector("xpath=//button[text()='Sign Up']", timeout = TIMEOUT)
                 await connect_btn.click()
 
-                connect_btn = await page.wait_for_selector("xpath=//span[text()='MetaMask']", timeout = TIMEOUT)
-                await connect_btn.click()
+                await self._check_element_exists_and_visible(page, 'button.c-iOvmAQ') #wait for metamask button to appear
+                mm_btn = page.locator('button.c-iOvmAQ').nth(0)
+                await mm_btn.click()
 
-                await self._click_through_metamask_popup(browser) #click throw metamask messages
+                await self._click_through_metamask_popup(browser) #click through metamask messages
 
                 marker = page.locator('li.c-hdHRLY.c-hdHRLY-idnXRsK-css')
                 await marker.wait_for(state='visible', timeout=TIMEOUT)
                 
                 logger.info(f'{self.address}: Connection to Polymarket successful')
+                account_banned = await self._check_element_exists_and_visible(page, 'xpath=//h2[text()="Trading Halted"]', timeout = int(TIMEOUT/2))
+                if account_banned:
+                    logger.warning(f'{self.address}: Account trading is banned')
+
                 return page
         
             except Exception as e: 
-                logger.warning(f'{self.address}: Connection to Polymarket failed: retrying...')
+                logger.warning(f'{self.address}: Connection to Polymarket failed: {str(e)} - retrying...')
                 close_btn = page.locator('button.c-dNoRFn').nth(1)
                 if close_btn: 
                     await close_btn.click()
-
+                
                 restricted = await self._check_element_exists_and_visible(page, 'button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-ibQoyvR-css', timeout = TIMEOUT)
                 if restricted:                 
-                    btn = await page.locator('button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-ibQoyvR-css').all()
+                    btn = page.locator('button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-ibQoyvR-css').all()
                     await btn.click(timeout = TIMEOUT)
+                    return page
                     
                 await asyncio.sleep(10)
                 if i == 2: 
@@ -202,7 +208,7 @@ class Account():
         except Exception:
             return False
         
-    async def _load_page(self, page:Page, url:str, timeout = TIMEOUT): 
+    async def _load_page(self, page:Page, url:str, timeout = 4*TIMEOUT): 
 
         for _ in range(ERR_ATTEMPTS):
             try:

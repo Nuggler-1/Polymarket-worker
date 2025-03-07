@@ -26,14 +26,31 @@ class BetsRunner():
 
         for account_chunk, market_bet in zip(accounts_chunks, MARKET_BETS): 
 
-            side = market_bet[1]
-            market_id = market_bet[0]
+            match len(market_bet): 
+                case 2:
+                    condition = None
+                    side = market_bet[1]
+                    market_slug = market_bet[0]
+                case 3: 
+                    condition = market_bet[2]
+                    side = market_bet[1]
+                    market_slug = market_bet[0]
+                case _: 
+                    logger.warning(f'Invalid market bet: {market_bet}')
+                    continue
+
+            market_id = AccountAPI.get_market_address_by_slug(market_slug, condition)
+            token_ids = AccountAPI._get_token_ids(market_id)
+
+            if not token_ids:
+                logger.warning(f'No token ids found for market {market_id}')
+                continue
+                
             for account in account_chunk:
                 
                 balance = get_erc20_balance(self.web3, account.funder, CHAINS_DATA['POLYGON']['USDC.e'])
                 amount_to_bet = round(balance * random.uniform(PERCENT_OF_BALANCE_TO_BET[0], PERCENT_OF_BALANCE_TO_BET[1]) / 100, random.randint(1, 2)) 
 
-                token_ids = AccountAPI._get_token_ids(market_id)
                 if not token_ids:
                     logger.warning(f'No token ids found for market {market_id}')
                     continue

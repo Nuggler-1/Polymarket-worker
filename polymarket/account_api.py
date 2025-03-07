@@ -112,6 +112,26 @@ class Account():
                 'NO': no_id
             }
         
+    @staticmethod
+    @error_handler('getting market address')
+    def get_market_address_by_slug(market_slug:str, condition:str = None): 
+
+        url = f'https://gamma-api.polymarket.com/events/slug/{market_slug}'
+
+        with requests.Session() as session:
+            response = session.get(url)
+            try:    
+                markets = response.json()['markets']
+                
+                if not condition: 
+                    return markets[0]['conditionId']
+                else: 
+                    for market in markets: 
+                        if market['groupItemTitle'] == condition: 
+                            return market['conditionId']
+            except:
+                logger.warning(f'Failed to get market data')
+        
     def get_position_size(self, token_id): 
         """
         returns size in shares

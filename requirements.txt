@@ -13,3 +13,4 @@ Requests==2.32.3
 stringtools==3.0.1
 termcolor==2.5.0
 web3==6.5.0
+py_clob_client==0.20.0
