@@ -8,7 +8,7 @@ from .account_api import Account as AccountAPI
 
 from config import TOTAL_AMOUNT, RPC,BETS_DEVIATION_PERCENT, SLEEP_BETWEEN_WALLETS_IN_FORK, SLEEP_BETWEEN_FORKS
 from vars import CHAINS_DATA
-from utils.constants import DEFAULT_POLYMARKET_WALLETS
+from utils.constants import DEFAULT_POLYMARKET_WALLETS, SAVED_FORK_WALLETS
 from polymarket.market_search import Search
 from utils.utils import get_erc20_balance, get_deposit_wallet, sleep, get_proxy
 
@@ -168,6 +168,10 @@ class ForkRunner(Search):
             hedge_amount_2 = data['hedge_amount_2']
             main_token_id = data['main_token_id']
             hedge_token_id = data['hedge_token_id'] 
+
+            # Сохраняем данные кошельков в файл
+            with open(SAVED_FORK_WALLETS, 'a') as f:
+                f.write(f"{main_account._private_key},{hedge_account_1._private_key},{hedge_account_2._private_key}\n")
 
             logger.opt(colors=True).info(f'Starting accounts with <cyan><bold>{main_account.address}</bold></cyan> as main side')
             logger.opt(colors=True).info(f'And <magenta><bold>{hedge_account_1.address}</bold></magenta> & <magenta><bold>{hedge_account_2.address}</bold></magenta> as hedge side')
