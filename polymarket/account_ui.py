@@ -71,9 +71,9 @@ class Account():
 
         return 
     
-    async def _click_through_metamask_popup(self,browser,):
+    async def _click_through_metamask_popup(self,browser,timeout_multplier = 1):
 
-        popup_window = await switch_to_page_by_title(browser, 'MetaMask', timeout = 30)
+        popup_window = await switch_to_page_by_title(browser, 'MetaMask', timeout = int(30 * timeout_multplier))
 
         while True: #click through metamask messages
 
@@ -233,43 +233,24 @@ class Account():
 
         await self._load_page(page,POLYMARKET_URL+'portfolio')
         logger.info(f'{self.address}: Checking for bets to claim')
-        
-        claim = await self._check_element_exists_and_visible(page, 'a.c-gBrBnR.c-gBrBnR-fbCeQT-variant-quaternary.c-gBrBnR-ehsAZX-height-md.c-gBrBnR-eJubdF-fontWeight-bold.c-gBrBnR-dRRWyf-fontSize-md.c-gBrBnR-gaXLJU-cv.c-gBrBnR-ihilFlW-css', timeout=TIMEOUT)
+                                                                    
+        claim = await self._check_element_exists_and_visible(page, 'button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-eJubdF-fontWeight-bold.c-gBrBnR-dRRWyf-fontSize-md.c-gBrBnR-faTPNG-cv.c-gBrBnR-iiVZvnu-css', timeout=TIMEOUT)
         if claim: 
-            
-            claim_buttons = page.locator('a.c-gBrBnR.c-gBrBnR-fbCeQT-variant-quaternary.c-gBrBnR-ehsAZX-height-md.c-gBrBnR-eJubdF-fontWeight-bold.c-gBrBnR-dRRWyf-fontSize-md.c-gBrBnR-gaXLJU-cv.c-gBrBnR-ihilFlW-css')
-            events_to_claim = []
-            
-            for i in range(await claim_buttons.count()):
-                event_link= await claim_buttons.nth(i).get_attribute('href')
-                events_to_claim.append(POLYMARKET_URL+event_link)
+            logger.info(f'{self.address}: Claiming bets')
+            await page.click('button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-eJubdF-fontWeight-bold.c-gBrBnR-dRRWyf-fontSize-md.c-gBrBnR-faTPNG-cv.c-gBrBnR-iiVZvnu-css', timeout = TIMEOUT)
+            await self._check_element_exists_and_visible(page, 'button.c-gBrBnR.c-chRxwd.c-gBrBnR-gDWzxt-variant-primary', timeout=TIMEOUT)
+            await page.click('button.c-gBrBnR.c-chRxwd.c-gBrBnR-gDWzxt-variant-primary',timeout = TIMEOUT)
+            await self._click_through_metamask_popup(browser, timeout_multplier=2)
+            claimed = await self._check_element_exists_and_visible(page, 'xpath=//p[text()="You successfully claimed all your winnings."]', timeout=TIMEOUT)
+            if claimed:
+                logger.success(f'{self.address}: Bets claimed')
+                await async_sleep([2,5])
+                return 1
+            else: 
+                raise Exception(f'{self.address}: Bets claim failed. Could not find confirmation message')
         else: 
             logger.warning(f'{self.address}: No bets to claim')
             return None
-        
-        for event in events_to_claim: 
-            await self._load_page(page,event)
-
-            auth = await self._check_element_exists_and_visible(page, 'button.c-gBrBnR.c-loKlDK.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-bxvuTL-fontWeight-medium.c-gBrBnR-dRRWyf-fontSize-md.c-gBrBnR-icwKLDw-css', timeout = TIMEOUT)
-            if auth: 
-                auth_buttons = await page.locator('button.c-gBrBnR.c-loKlDK.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-bxvuTL-fontWeight-medium.c-gBrBnR-dRRWyf-fontSize-md.c-gBrBnR-icwKLDw-css').all()
-                for btn in auth_buttons: 
-                    await btn.click(timeout = TIMEOUT)
-                    await self._click_through_metamask_popup(browser)
-                    await asyncio.sleep(2)
-
-            restricted = await self._check_element_exists_and_visible(page, 'button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-ibQoyvR-css', timeout = TIMEOUT)
-            if restricted:                 
-                btn = await page.locator('button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-ibQoyvR-css').all()
-                await btn.click(timeout = TIMEOUT)
-                
-            claim = await self._check_element_exists_and_visible(page, 'div.c-jpvvtk', timeout = TIMEOUT)
-            if claim: 
-                claim_button = page.locator('div.c-jpvvtk') 
-                await claim_button.click(timeout = TIMEOUT)
-                await self._click_through_metamask_popup(browser)
-                logger.success(f'{self.address}: Bet {event.split("/")[-1]} claimed')
-                await asyncio.sleep(3) 
     
     @async_error_handler('approving tokens')
     async def approve_tokens(self, browser, page):
