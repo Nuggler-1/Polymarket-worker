@@ -5,14 +5,19 @@ from web3 import Web3
 from loguru import logger
 from .account_api import Account as AccountAPI
 
-from config import TOTAL_AMOUNT, RPC,BETS_DEVIATION_PERCENT, SLEEP_BETWEEN_WALLETS_IN_FORK, SLEEP_BETWEEN_FORKS
+from config import ERR_ATTEMPTS, TOTAL_AMOUNT, RPC,BETS_DEVIATION_PERCENT, SLEEP_BETWEEN_WALLETS_IN_FORK, SLEEP_BETWEEN_FORKS,BET_MORE_ON_HIGHEST_CHANCE
 from vars import CHAINS_DATA
 from utils.constants import DEFAULT_POLYMARKET_WALLETS
+from .constants import GAMMA_API
 from polymarket.market_search import Search
-from utils.utils import get_erc20_balance, get_deposit_wallet, sleep, get_proxy
+from utils.utils import get_erc20_balance, get_deposit_wallet, sleep, async_sleep, get_proxy
+from requests import Session
+import time
+import datetime
+import json
 
 
-class ForkRunner(Search):
+class SmartForkRunner(Search):
 
     def __init__(self, private_keys: list[str], ):
 
@@ -21,59 +26,129 @@ class ForkRunner(Search):
         self.private_keys = private_keys
         self.accounts = []
 
-        self.events_to_check, self.min_liquidity, self.max_loss, self.max_price_difference = self._ask_data()
+        self.slug_of_events = None
+        self.market_resolve_days = None
+        self.acc_qnty_per_fork = None
+        self.max_amount_per_wallet = None
+        self.min_event_price = None
+        self.max_event_price = None
+        self.max_loss = None
 
+        self._ask_data()
+    
         self.web3 = Web3(Web3.HTTPProvider(RPC['POLYGON']))
         logger.info(f'Creating list of accounts - it might take a while...')
         for key in private_keys:
             self.accounts.append(AccountAPI(key, funder = get_deposit_wallet(key, deposit_addresses=DEFAULT_POLYMARKET_WALLETS), proxy = get_proxy(key) ) )
 
         self.market_list = None
-        #self.set_market_list()
+
+    async def _process_single_market(self, market:dict):
+        
+        tokens = json.loads(market['clobTokenIds'])
+
+        price_1 =  int(await self._get_market_price(tokens[0],  self.min_liquidity)*100) 
+        price_2 =  int(await self._get_market_price(tokens[1],  self.min_liquidity)*100)
+
+        min_difference = self.min_event_price - (100 - self.min_event_price) - self.max_loss
+        max_differenct = self.max_event_price - (100 - self.max_event_price)
+
+        #check max spread
+        if abs(100 - price_1 - price_2) > self.max_loss: 
+            logger.opt(colors=True).warning(f'{market["question"]} with spread <cyan>{abs(100 - price_1 - price_2)}c</cyan> is not suitable')
+            return None
+        
+        #check min and max price difference 
+        price_dif = abs(price_1 - price_2) 
+        if price_dif >= min_difference and price_dif <= max_differenct:
+
+            #select main token
+            if price_1 > price_2: 
+                main_token_id = tokens[0]
+                hedge_token_id = tokens[1]
+            else: 
+                main_token_id = tokens[1]
+                hedge_token_id = tokens[0]
+
+            return {
+                "question": market['question'],
+                "clobTokenIds": market['clobTokenIds'],
+                "main_token_id": main_token_id,
+                "hedge_token_id": hedge_token_id,
+                "main_price": price_1 if price_1>price_2 else price_2,
+                "hedge_price": price_2 if price_1>price_2 else price_1
+            }  
+
+        else: 
+            logger.opt(colors=True).warning(f'{market["question"]} with prices <cyan>{price_1}c</cyan> and <cyan>{price_2}c</cyan> is not suitable')
+            return None
+
+    async def market_search(self,):
+        # Calculate max allowed end date
+        max_end_date = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=self.market_resolve_days)
+
+        for _ in range(ERR_ATTEMPTS):
+            url = GAMMA_API + f"events?tag_slug={self.slug_of_events}&closed=false" 
+            with Session() as session:
+                with session.get(url) as response:
+                    events = response.json()
+                    if len(events) == 0: 
+                        logger.error(f'Failed to get events from API for given {self.slug_of_events}, retrying in 10s...')
+                        await async_sleep([10, 10])
+                    else: 
+                        break
+
+        markets = []
+        for event in events:
+            # check event end date
+            if event.get('endDate'):
+                end_date = datetime.datetime.strptime(event['endDate'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc)
+                if end_date > max_end_date:
+                    logger.opt(colors=True).warning(f'{event["title"]} end date <c>{event["endDate"]}</c> is too far')
+                    continue
+                logger.opt(colors=True).success(f'{event["title"]} end date <c>{event["endDate"]}</c> is fine')
+            else:
+                continue
+
+            for market in event['markets']:
+                market = await self._process_single_market(market)
+                if market:
+                    markets.append(market)
+
+        logger.info(f'Found overall {len(markets)} markets with the next event titles:')
+        for market in markets:
+            logger.opt(colors=True).info(f'Event - <c>{market["main_price"]}</c> vs. <c>{market["hedge_price"]}</c> - <m>{market["question"]}</m>')
+        return markets
 
     async def set_market_list(self,):
-
+        
         logger.info(f'Finding markets according to filters to open bets')
-        self.market_list = await self.find_markets(self.events_to_check, self.min_liquidity, self.max_loss, self.max_price_difference)
+        self.market_list = await self.market_search()
         if len(self.market_list) == 0:
             logger.warning('No markets found according to filters')
             return False 
         else: 
-            print()
-            logger.success(f'Found {len(self.market_list)} markets according to filters')
-            for name, tokens in self.market_list.items():
-                logger.opt(colors=True).success(f'YES <cyan>{list(tokens.values())[0]:.3f}$</cyan> - NO <cyan>{list(tokens.values())[1]:.3f}$</cyan> - {name}')
             return True
         
-    async def get_market(self,):
-
+    async def get_market(self,): 
         while True:
-
             if len(self.market_list) == 0:
                 logger.info('No markets left according to filters, starting refresh...')
                 self.set_market_list()
-                continue
+                sleep([50,100])
+                continue 
 
-            market_name, tokens = random.choice(list(self.market_list.items()))
-            tokens = list(tokens.keys())
-            res = await self._process_market_prices(market_name, tokens)
+            market = random.choice(self.market_list)
+            res = await self._process_single_market(market)
 
             if not res: 
-                logger.warning(f'Market {market_name} is no longer suitable for filters, trying again')
-                del self.market_list[market_name]
+                logger.warning(f'Market {market["question"]} is no longer suitable for filters, trying again')
+                del self.market_list[market]
                 continue
             else: 
-                name = list(res.keys())[0]
-                tokens = list(res[name].keys())
-                res = {
-                    "question": name,
-                    "main_token_id": tokens[0],
-                    "hedge_token_id": tokens[1],
-                    "main_price": res[name][tokens[0]],
-                    "hedge_price": res[name][tokens[1]],
-                }  
                 return res
-            
+
+
     def _distribute_amount(self, total_amt: float | int, num_parts:int, max_amount_per_wallet:float | int):
         if max_amount_per_wallet and total_amt > max_amount_per_wallet * num_parts:
             raise ValueError(f"Total amount {total_amt} too large to distribute among {num_parts} wallets with max {max_amount_per_wallet} per wallet")
@@ -124,7 +199,10 @@ class ForkRunner(Search):
         high_chance_price, low_chance_price = _market_data['main_price'], _market_data['hedge_price']
 
         #calculate main and hedge amounts
-        main_amount, hedge_amount, _ = self.calculate_balanced_bets_amounts(total_amount, high_chance_price, low_chance_price)
+        if BET_MORE_ON_HIGHEST_CHANCE:
+            main_amount, hedge_amount = self.calculate_unbalanced_bets_amounts(total_amount, round(high_chance_price/100, 2), round(low_chance_price/100, 2))
+        else:
+            main_amount, hedge_amount, _= self.calculate_balanced_bets_amounts(total_amount, round(high_chance_price/100, 2), round(low_chance_price/100, 2))
         deviation = random.uniform(-BETS_DEVIATION_PERCENT/2, BETS_DEVIATION_PERCENT/2)/100
 
         main_amount = main_amount + main_amount * deviation
@@ -172,10 +250,15 @@ class ForkRunner(Search):
         return result
         
     def _ask_data(self,):
-        amount_of_events = str(
-            questionary.text("Input amount of events to check (default is 20): \n").unsafe_ask()
+        self.slug_of_events = str(
+            questionary.text("Input slug of events to search (ex. sports): \n").unsafe_ask()
         )
-        amount_of_events = 20 if len(amount_of_events) == 0 else int(amount_of_events)
+        self.slug_of_events = '' if len(self.slug_of_events) == 0 else self.slug_of_events.lower()
+
+        self.market_resolve_days = str(
+            questionary.text("Input max days till market resolves (default is 2): \n").unsafe_ask()
+        )
+        self.market_resolve_days = 2 if len(self.market_resolve_days) == 0 else int(self.market_resolve_days)
 
         self.acc_qnty_per_fork = str(
             questionary.text("Input amount of accounts per fork (default is 2 - 4): \n").unsafe_ask()
@@ -187,24 +270,23 @@ class ForkRunner(Search):
         )
         self.max_amount_per_wallet = 35 if len(self.max_amount_per_wallet) == 0 else float(self.max_amount_per_wallet)
 
-        min_liquidity = str(
-            questionary.text("Input min liquidity in market orderbook (default is 150$): \n").unsafe_ask()
-        )
-        min_liquidity = 150 if len(min_liquidity) == 0 else float(min_liquidity)
+        self.min_liquidity = self.acc_qnty_per_fork[1] * self.max_amount_per_wallet
 
-        max_loss = str(
-            questionary.text("Input max loss in % (default is 5%): \n").unsafe_ask()
+        self.max_loss = str(
+            questionary.text("Input max spread in cents (default is 2c): \n").unsafe_ask()
         )
-        max_loss = 5 if len(max_loss) == 0 else float(max_loss) 
+        self.max_loss = 2 if len(self.max_loss) == 0 else float(self.max_loss)
 
-        max_price_difference = str(
-            questionary.text("Input max price difference in cents [2 - 98] (default is 20 e.g. max difference of bets is 60 to 40): \n").unsafe_ask()
+        self.min_event_price = str(
+            questionary.text("Min price for high chance event (default is 70c): \n").unsafe_ask()
         )
-        max_price_difference = 20 if len(max_price_difference) == 0 else float(max_price_difference) 
+        self.min_event_price = 70 if len(self.min_event_price) == 0 else float(self.min_event_price)
 
-        return amount_of_events, min_liquidity, max_loss, max_price_difference
-    
-    
+        self.max_event_price = str(
+            questionary.text("Max price for high chance event (default is 90c): \n").unsafe_ask()
+        )
+        self.max_event_price = 90 if len(self.max_event_price) == 0 else float(self.max_event_price)
+
     async def run_forks(self, ):
 
         if not await self.set_market_list():

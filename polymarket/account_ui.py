@@ -6,7 +6,7 @@ from eth_account import Account as ethAccount
 from .utils import switch_to_page_by_title, close_page_by_title
 from .constants import POLYMARKET_URL
 from config import AMOUNT_TO_WITHDRAW, WITHDRAW_ALL, TIMEOUT, ERR_ATTEMPTS, PROXY_MODE
-from utils.utils import generate_name, async_error_handler
+from utils.utils import generate_name, async_error_handler, async_sleep
 
 import os 
 import asyncio
@@ -146,13 +146,13 @@ class Account():
                 connect_btn = await page.wait_for_selector("xpath=//button[text()='Sign Up']", timeout = TIMEOUT)
                 await connect_btn.click()
 
-                await self._check_element_exists_and_visible(page, 'button.c-iOvmAQ') #wait for metamask button to appear
-                mm_btn = page.locator('button.c-iOvmAQ').nth(0)
+                await self._check_element_exists_and_visible(page, 'button.c-fIAueE') #wait for metamask button to appear
+                mm_btn = page.locator('button.c-fIAueE').nth(0)
                 await mm_btn.click()
 
                 await self._click_through_metamask_popup(browser) #click through metamask messages
 
-                marker = page.locator('li.c-hdHRLY.c-hdHRLY-idnXRsK-css')
+                marker = page.locator('xpath=//button[text()="Deposit"]')
                 await marker.wait_for(state='visible', timeout=TIMEOUT)
                 
                 logger.info(f'{self.address}: Connection to Polymarket successful')
@@ -311,6 +311,20 @@ class Account():
         logger.success(f'{self.address}: deposit address found: {deposit_address}')
 
         return deposit_address
+
+    @async_error_handler('changing nickname')
+    async def change_nickname(self, page):
+        await self._load_page(page, POLYMARKET_URL +"settings")
+
+        if await self._check_element_exists_and_visible(page,"input.c-lhwwDC.c-lhwwDC-ihicnEK-css", timeout = TIMEOUT): 
+            
+            name = generate_name([4,11], [0,999])
+            nick_input = await page.query_selector("input.c-lhwwDC.c-lhwwDC-ihicnEK-css")
+            await nick_input.fill(name)
+            await asyncio.sleep(2)
+            await page.click('button.c-gBrBnR.c-gBrBnR-gDWzxt-variant-primary.c-gBrBnR-ieKNWzS-css', timeout = TIMEOUT)
+            await async_sleep([5,10])
+            logger.success(f'{self.address} nickname changed to {name}')
 
     @async_error_handler('approve deposit')
     async def approve_pending_deposit(self, browser, page):

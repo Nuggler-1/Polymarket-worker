@@ -18,6 +18,21 @@ class Search():
         self.max_price_sum = None
         self.max_price_difference = None
 
+    @staticmethod 
+    def calculate_unbalanced_bets_amounts(total_amount: float | int, price_a: float | int, price_b: float | int):
+        """
+        prices and total amount passed in dollars!!!!
+        price_a is price of the high conviction bet (the winning one)
+        price_b is a price of the less conviction bet
+        """
+
+        bet_a = total_amount * price_a
+        bet_b = total_amount - bet_a 
+        
+        return bet_a, bet_b
+
+
+
     @staticmethod
     def calculate_balanced_bets_amounts(total_amount, price_a, price_b):
         """
