@@ -328,6 +328,8 @@ def get_proxy(private,mode ='http' ):
             
     n = privates.index(str(private))
     proxy = proxies[n]
+    if proxy.startswith('http://'):
+        proxy = proxy.split('://')[1]
     if mode == 'http': 
         proxy = {
             'http': f'{PROXY_MODE.lower()}://{proxy}',
@@ -370,13 +372,13 @@ def pad32Bytes(data):
 
 
 async def async_sleep(sleeping): 
-    sleep_time = random.randrange(sleeping[0], sleeping[1])
+    sleep_time = random.randrange(*sleeping) if sleeping[0] != sleeping[1] else random.randrange(sleeping[0])
     logger.info(f'Waiting {sleep_time} secs')
     await asyncio.sleep(sleep_time)
 
 def sleep(sleeping):
 
-    sleep_time = random.randrange(sleeping[0], sleeping[1])
+    sleep_time = random.randrange(*sleeping) if sleeping[0] != sleeping[1] else random.randrange(sleeping[0])
     logger.info(f'Waiting {sleep_time} secs')
     time.sleep(sleep_time)
 
@@ -387,7 +389,8 @@ def get_random_proxy():
             return None
     
     proxy = random.choice(proxies)
-    proxy = f'http://{proxy}'
+    if not proxy.startswith('http://'):
+        proxy = f'http://{proxy}'
     
     return proxy
     
