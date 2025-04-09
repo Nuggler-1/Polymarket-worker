@@ -378,8 +378,8 @@ class SmartForkRunner(Search):
             
             # Log all accounts
             logger.opt(colors= True).info(f'Starting fork on event <m>{data["question"]}</m>')
-            logger.opt(colors=True).info(f'Main amount to be spent: <c>{sum(main_amounts)}$</c>')
-            logger.opt(colors=True).info(f'Hedge amount to be spent: <m>{sum(hedge_amounts)}$</m>')
+            logger.opt(colors=True).info(f'Main amount to be spent: <c>{round(sum(main_amounts),2)}$</c>')
+            logger.opt(colors=True).info(f'Hedge amount to be spent: <m>{round(sum(hedge_amounts),2)}$</m>')
             main_addresses = [f'<cyan><bold>{acc.address}</bold></cyan>' for acc in main_accounts]
             hedge_addresses = [f'<magenta><bold>{acc.address}</bold></magenta>' for acc in hedge_accounts]
             logger.opt(colors=True).info(f'Main accounts: {" | ".join(main_addresses)}')
