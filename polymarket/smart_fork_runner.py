@@ -236,7 +236,6 @@ class SmartForkRunner(Search):
         
         # Generate random total within these bounds
         total_amount = random.uniform(min_total, max_total)
-        logger.info(f'Generated total amount ${total_amount:.2f} for {num_wallets} wallets (${total_amount/num_wallets:.2f} avg per wallet)')
         
         _market_data = await self.get_market()
 
@@ -353,7 +352,7 @@ class SmartForkRunner(Search):
             if len(self.accounts) < self.acc_qnty_per_fork[1]:
                 acc_qnty = len(self.accounts)
             else:
-                acc_qnty = random.randrange(self.acc_qnty_per_fork[0], self.acc_qnty_per_fork[1])
+                acc_qnty = random.randrange(self.acc_qnty_per_fork[0], self.acc_qnty_per_fork[1]+1)
 
             data = await self._find_accounts(acc_qnty, self.max_amount_per_wallet)
             if not data:
