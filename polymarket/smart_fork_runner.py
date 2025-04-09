@@ -5,7 +5,7 @@ from web3 import Web3
 from loguru import logger
 from .account_api import Account as AccountAPI
 
-from config import ERR_ATTEMPTS, TOTAL_AMOUNT, RPC,BETS_DEVIATION_PERCENT, SLEEP_BETWEEN_WALLETS_IN_FORK, SLEEP_BETWEEN_FORKS,BET_MORE_ON_HIGHEST_CHANCE
+from config import ERR_ATTEMPTS, TOTAL_AMOUNT, RPC,BETS_DEVIATION_PERCENT, SLEEP_BETWEEN_WALLETS_IN_FORK, SLEEP_BETWEEN_FORKS,BET_MORE_ON_HIGHEST_CHANCE, CUSTOM_POOL_OF_MARKETS
 from vars import CHAINS_DATA
 from utils.constants import DEFAULT_POLYMARKET_WALLETS
 from .constants import GAMMA_API
@@ -35,6 +35,8 @@ class SmartForkRunner(Search):
         self.max_loss = None
         self.events_limit = None
 
+        self.market_list = None if len(CUSTOM_POOL_OF_MARKETS) == 0 else CUSTOM_POOL_OF_MARKETS
+
         self._ask_data()
     
         self.web3 = Web3(Web3.HTTPProvider(RPC['POLYGON']))
@@ -42,7 +44,6 @@ class SmartForkRunner(Search):
         for key in private_keys:
             self.accounts.append(AccountAPI(key, funder = get_deposit_wallet(key, deposit_addresses=DEFAULT_POLYMARKET_WALLETS), proxy = get_proxy(key) ) )
 
-        self.market_list = None
 
     async def _process_single_market(self, market:dict):
         
@@ -50,7 +51,7 @@ class SmartForkRunner(Search):
 
         price_1 =  int(await self._get_market_price(tokens[0],  self.min_liquidity)*100) 
         price_2 =  int(await self._get_market_price(tokens[1],  self.min_liquidity)*100)
-
+        
         min_difference = self.min_event_price - (100 - self.min_event_price) - self.max_loss
         max_differenct = self.max_event_price - (100 - self.max_event_price)
 
@@ -133,9 +134,32 @@ class SmartForkRunner(Search):
         for market in markets:
             logger.opt(colors=True).info(f'Event - <c>{market["main_price"]}</c> vs. <c>{market["hedge_price"]}</c> - <m>{market["question"]}</m>')
         return markets
+    
+    async def process_custom_market_list(self,):
+        markets = []
+        for market in self.market_list:
+            url = GAMMA_API + f"events/slug/{market.split('/')[-1]}"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        logger.error(f'Failed to get events from API for given {url}, retrying in 10s...')
+                        await async_sleep([10, 10])
+                        continue
+                    event = await response.json()
+                    if not event:
+                        logger.error(f'No events found for {market}...')
+                        continue
+                    markets.extend(event['markets'])
+        self.market_list = markets
+        return 
+                    
 
     async def set_market_list(self,):
         
+        if self.market_list is not None:
+            logger.info(f'Using custom market list')
+            await self.process_custom_market_list()
+            return True
         logger.info(f'Finding markets according to filters to open bets')
         self.market_list = await self.market_search()
         if len(self.market_list) == 0:
@@ -146,7 +170,7 @@ class SmartForkRunner(Search):
         
     async def get_market(self,): 
         while True:
-            if len(self.market_list) == 0:
+            if len(self.market_list) == 0 and len(CUSTOM_POOL_OF_MARKETS) == 0:
                 logger.info('No markets left according to filters, starting refresh...')
                 self.set_market_list()
                 sleep([50,100])
@@ -157,7 +181,7 @@ class SmartForkRunner(Search):
 
             if not res: 
                 logger.warning(f'Market {market["question"]} is no longer suitable for filters, trying again')
-                del self.market_list[market]
+                self.market_list.remove(market)
                 continue
             else: 
                 return res
@@ -264,20 +288,21 @@ class SmartForkRunner(Search):
         return result
         
     def _ask_data(self,):
-        self.slug_of_events = str(
-            questionary.text("Input slug of events to search (ex. sports): \n").unsafe_ask()
-        )
-        self.slug_of_events = '' if len(self.slug_of_events) == 0 else self.slug_of_events.lower()
+        if not self.market_list:
+            self.slug_of_events = str(
+                questionary.text("Input slug of events to search (ex. sports): \n").unsafe_ask()
+            )
+            self.slug_of_events = '' if len(self.slug_of_events) == 0 else self.slug_of_events.lower()
 
-        self.events_limit = str(
-            questionary.text("Input max number of events to search (default is 100): \n").unsafe_ask()
-        )
-        self.events_limit = 100 if len(self.events_limit) == 0 else int(self.events_limit)
+            self.events_limit = str(
+                questionary.text("Input max number of events to search (default is 100): \n").unsafe_ask()
+            )
+            self.events_limit = 100 if len(self.events_limit) == 0 else int(self.events_limit)
 
-        self.market_resolve_days = str(
-            questionary.text("Input max days till market resolves (default is 2): \n").unsafe_ask()
-        )
-        self.market_resolve_days = 2 if len(self.market_resolve_days) == 0 else int(self.market_resolve_days)
+            self.market_resolve_days = str(
+                questionary.text("Input max days till market resolves (default is 2): \n").unsafe_ask()
+            )
+            self.market_resolve_days = 2 if len(self.market_resolve_days) == 0 else int(self.market_resolve_days)
 
         self.acc_qnty_per_fork = str(
             questionary.text("Input amount of accounts per fork (default is 2 - 4): \n").unsafe_ask()
@@ -289,7 +314,10 @@ class SmartForkRunner(Search):
         )
         self.max_amount_per_wallet = 35 if len(self.max_amount_per_wallet) == 0 else float(self.max_amount_per_wallet)
 
-        self.min_liquidity = self.acc_qnty_per_fork[1] * self.max_amount_per_wallet
+        self.min_liquidity = str(
+            questionary.text("Input min liquidity in order book $ (default is 100$): \n").unsafe_ask() 
+        )
+        self.min_liquidity = 100 if len(self.min_liquidity) == 0 else float(self.min_liquidity)
 
         self.max_loss = str(
             questionary.text("Input max spread in cents (default is 2c): \n").unsafe_ask()
