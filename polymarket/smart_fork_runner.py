@@ -33,6 +33,7 @@ class SmartForkRunner(Search):
         self.min_event_price = None
         self.max_event_price = None
         self.max_loss = None
+        self.events_limit = None
 
         self._ask_data()
     
@@ -88,7 +89,11 @@ class SmartForkRunner(Search):
         max_end_date = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=self.market_resolve_days)
 
         for _ in range(ERR_ATTEMPTS):
-            url = GAMMA_API + f"events?tag_slug={self.slug_of_events}&closed=false" 
+
+            #limit
+            #event_date
+            #volume_min
+            url = GAMMA_API + f"events?tag_slug={self.slug_of_events}&closed=false&active=true&limit={self.events_limit}" 
             with Session() as session:
                 with session.get(url) as response:
                     events = response.json()
@@ -181,7 +186,7 @@ class SmartForkRunner(Search):
                 amounts[i] += additional
                 excess -= additional
             if excess > 0:
-                raise ValueError("Cannot distribute amounts within max_amount_per_wallet constraint")
+                raise ValueError("Cannot distribute amounts within max_amount_per_wallet constant")
         else:
             amounts.append(remaining)
 
@@ -254,6 +259,11 @@ class SmartForkRunner(Search):
             questionary.text("Input slug of events to search (ex. sports): \n").unsafe_ask()
         )
         self.slug_of_events = '' if len(self.slug_of_events) == 0 else self.slug_of_events.lower()
+
+        self.events_limit = str(
+            questionary.text("Input max number of events to search (default is 100): \n").unsafe_ask()
+        )
+        self.events_limit = 100 if len(self.events_limit) == 0 else int(self.events_limit)
 
         self.market_resolve_days = str(
             questionary.text("Input max days till market resolves (default is 2): \n").unsafe_ask()
