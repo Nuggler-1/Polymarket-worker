@@ -230,8 +230,15 @@ class SmartForkRunner(Search):
         if num_wallets < 2:
             raise ValueError("Number of wallets must be at least 2")
 
-        total_amount = random.uniform(TOTAL_AMOUNT[0], TOTAL_AMOUNT[1]) 
-        _market_data = await self.get_market() 
+        min_amount_per_wallet = max_amount_per_wallet * 0.3  
+        max_total = num_wallets * max_amount_per_wallet * 0.7 
+        min_total = num_wallets * min_amount_per_wallet
+        
+        # Generate random total within these bounds
+        total_amount = random.uniform(min_total, max_total)
+        logger.info(f'Generated total amount ${total_amount:.2f} for {num_wallets} wallets (${total_amount/num_wallets:.2f} avg per wallet)')
+        
+        _market_data = await self.get_market()
 
         high_chance_token_id, low_chance_token_id = _market_data['main_token_id'], _market_data['hedge_token_id']
         high_chance_price, low_chance_price = _market_data['main_price'], _market_data['hedge_price']
