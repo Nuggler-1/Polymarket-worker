@@ -11,7 +11,7 @@ from utils.constants import DEFAULT_POLYMARKET_WALLETS
 from .constants import GAMMA_API
 from polymarket.market_search import Search
 from utils.utils import get_erc20_balance, get_deposit_wallet, sleep, async_sleep, get_proxy
-from requests import Session
+import aiohttp
 import time
 import datetime
 import json
@@ -84,41 +84,50 @@ class SmartForkRunner(Search):
             logger.opt(colors=True).warning(f'{market["question"]} with prices <cyan>{price_1}c</cyan> and <cyan>{price_2}c</cyan> is not suitable')
             return None
 
+    async def _process_event_markets(self, event, max_end_date):
+        if not event.get('endDate'):
+            return []
+            
+        end_date = datetime.datetime.strptime(event['endDate'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc)
+        if end_date > max_end_date:
+            logger.opt(colors=True).warning(f'{event["title"]} end date <c>{event["endDate"]}</c> is too far')
+            return []
+            
+        logger.opt(colors=True).success(f'{event["title"]} end date <c>{event["endDate"]}</c> is fine')
+        
+        # Process all markets for this event concurrently
+        tasks = [self._process_single_market(market) for market in event['markets']]
+        results = await asyncio.gather(*tasks)
+        
+        # Filter out None results
+        return [market for market in results if market]
+
     async def market_search(self,):
         # Calculate max allowed end date
         max_end_date = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=self.market_resolve_days)
 
         for _ in range(ERR_ATTEMPTS):
-
-            #limit
-            #event_date
-            #volume_min
             url = GAMMA_API + f"events?tag_slug={self.slug_of_events}&closed=false&active=true&limit={self.events_limit}" 
-            with Session() as session:
-                with session.get(url) as response:
-                    events = response.json()
-                    if len(events) == 0: 
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status != 200:
                         logger.error(f'Failed to get events from API for given {self.slug_of_events}, retrying in 10s...')
                         await async_sleep([10, 10])
-                    else: 
-                        break
+                        continue
+                    events = await response.json()
+                    if not events:
+                        logger.error(f'No events found for {self.slug_of_events}, retrying in 10s...')
+                        await async_sleep([10, 10])
+                        continue
+                    break
 
-        markets = []
-        for event in events:
-            # check event end date
-            if event.get('endDate'):
-                end_date = datetime.datetime.strptime(event['endDate'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc)
-                if end_date > max_end_date:
-                    logger.opt(colors=True).warning(f'{event["title"]} end date <c>{event["endDate"]}</c> is too far')
-                    continue
-                logger.opt(colors=True).success(f'{event["title"]} end date <c>{event["endDate"]}</c> is fine')
-            else:
-                continue
-
-            for market in event['markets']:
-                market = await self._process_single_market(market)
-                if market:
-                    markets.append(market)
+        # Process all events concurrently
+        tasks = [self._process_event_markets(event, max_end_date) for event in events]
+        market_lists = await asyncio.gather(*tasks)
+        
+        # Flatten the list of lists into a single list of markets
+        markets = [market for sublist in market_lists for market in sublist]
 
         logger.info(f'Found overall {len(markets)} markets with the next event titles:')
         for market in markets:
@@ -197,7 +206,7 @@ class SmartForkRunner(Search):
         if num_wallets < 2:
             raise ValueError("Number of wallets must be at least 2")
 
-        total_amount = random.uniform(TOTAL_AMOUNT[0], TOTAL_AMOUNT[1]) #сделать отдельное значение в конфиге
+        total_amount = random.uniform(TOTAL_AMOUNT[0], TOTAL_AMOUNT[1]) 
         _market_data = await self.get_market() 
 
         high_chance_token_id, low_chance_token_id = _market_data['main_token_id'], _market_data['hedge_token_id']
@@ -346,7 +355,7 @@ class SmartForkRunner(Search):
             
             # Execute all orders
             successful_orders = []
-            
+            #input()
             for account, amount, token_id, side in all_orders:
                 order = None
                 current_account = account
