@@ -133,6 +133,12 @@ class SmartForkRunner(Search):
         logger.info(f'Found overall {len(markets)} markets with the next event titles:')
         for market in markets:
             logger.opt(colors=True).info(f'Event - <c>{market["main_price"]}</c> vs. <c>{market["hedge_price"]}</c> - <m>{market["question"]}</m>')
+        proceed = str(
+            questionary.select("Proceed with given markets?: ", ['Yes', 'No']).unsafe_ask()
+        )
+        if proceed == 'No':
+            logger.info('Exiting...')
+            raise Exception('User exited')
         return markets
     
     async def process_custom_market_list(self,):
