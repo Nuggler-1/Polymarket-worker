@@ -172,7 +172,7 @@ class SmartForkRunner(Search):
         while True:
             if len(self.market_list) == 0 and len(CUSTOM_POOL_OF_MARKETS) == 0:
                 logger.info('No markets left according to filters, starting refresh...')
-                self.set_market_list()
+                await self.set_market_list()
                 sleep([50,100])
                 continue 
 
@@ -354,7 +354,21 @@ class SmartForkRunner(Search):
             else:
                 acc_qnty = random.randrange(self.acc_qnty_per_fork[0], self.acc_qnty_per_fork[1]+1)
 
-            data = await self._find_accounts(acc_qnty, self.max_amount_per_wallet)
+            while True:
+                try:
+                    if acc_qnty <= self.acc_qnty_per_fork[1]:  
+                        data = await self._find_accounts(acc_qnty, self.max_amount_per_wallet)
+                    break
+                except ValueError as e:
+                    logger.warning(f'Error: {e}')
+                    if "too large to distribute" in str(e):
+                        logger.info('Adding more wallets to the list and retrying...')
+                        acc_qnty += 1
+            
+            if acc_qnty > self.acc_qnty_per_fork[1]:
+                logger.warning('Can\'t add more wallets, skipping fork')
+                continue
+
             if not data:
                 logger.warning('No accounts with enough balance to open forks')
                 return
