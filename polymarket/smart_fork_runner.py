@@ -134,7 +134,7 @@ class SmartForkRunner(Search):
         for market in markets:
             logger.opt(colors=True).info(f'Event - <c>{market["main_price"]}</c> vs. <c>{market["hedge_price"]}</c> - <m>{market["question"]}</m>')
         proceed = str(
-            questionary.select("Proceed with given markets?: ", ['Yes', 'No']).unsafe_ask()
+            await questionary.select("Proceed with given markets?: ", ['Yes', 'No']).unsafe_ask_async()
         )
         if proceed == 'No':
             logger.info('Exiting...')
