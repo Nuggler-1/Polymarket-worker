@@ -240,7 +240,7 @@ class Account():
             logger.success(f'{self.address} - Market order filled')
             return 1
         else: 
-            raise Exception(f'Market order failed to fill: {order} ')
+            raise Exception(f'Market order failed to fill {order}')
         
     @error_handler('market order')
     def market_buy(self, token_id:str, size:float): 
@@ -257,7 +257,7 @@ class Account():
             logger.success(f'{self.address} - Market order filled')
             return 1
         else: 
-            raise Exception(f'Market order failed to fill: {order} ')
+            raise Exception(f'Market order failed to fill {order}')
 
 
 
@@ -349,7 +349,7 @@ class Account():
                 price = self._get_market_price(token_id, 'SELL', size*price)
                 if price == 0: 
                     continue
-                assert self.limit_sell(token_id, price*100, size)['status'] == 'matched', 'Failed to fill order'
+                assert self.limit_sell(token_id, price*100, size)['status'] == 'matched', f'Failed to fill order '
                 logger.success(f'{self.address} - order filled')
             else: 
                 logger.opt(colors=True).warning(f'{self.address} - Skipping position <red>{position["title"]}</red> with size {size} because it is too small or the market has ended')

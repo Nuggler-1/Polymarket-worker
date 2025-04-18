@@ -108,7 +108,7 @@ class SmartForkRunner(Search):
         max_end_date = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=self.market_resolve_days)
 
         for _ in range(ERR_ATTEMPTS):
-            url = GAMMA_API + f"events?tag_slug={self.slug_of_events}&closed=false&active=true&limit={self.events_limit}" 
+            url = GAMMA_API + f"events?" + (f"tag_slug={self.slug_of_events}&" if len(self.slug_of_events) > 1 else "") + f"closed=false&active=true&limit={self.events_limit}" 
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
@@ -134,7 +134,7 @@ class SmartForkRunner(Search):
         for market in markets:
             logger.opt(colors=True).info(f'Event - <c>{market["main_price"]}</c> vs. <c>{market["hedge_price"]}</c> - <m>{market["question"]}</m>')
         proceed = str(
-            questionary.select("Proceed with given markets?: ", ['Yes', 'No']).unsafe_ask()
+            await questionary.select("Proceed with given markets?: ", ['Yes', 'No']).unsafe_ask_async()
         )
         if proceed == 'No':
             logger.info('Exiting...')
@@ -431,6 +431,9 @@ class SmartForkRunner(Search):
                             if order:
                                 logger.info(f'Successfully replaced with account {current_account.address}')
                                 break
+                            else: 
+                                order = None 
+                                break 
                 
                 # If still no order after trying replacement
                 if not order:
