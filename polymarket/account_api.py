@@ -240,7 +240,7 @@ class Account():
             logger.success(f'{self.address} - Market order filled')
             return 1
         else: 
-            raise Exception('Market order failed to fill')
+            raise Exception(f'Market order failed to fill: {order} ')
         
     @error_handler('market order')
     def market_buy(self, token_id:str, size:float): 
@@ -257,7 +257,7 @@ class Account():
             logger.success(f'{self.address} - Market order filled')
             return 1
         else: 
-            raise Exception('Market order failed to fill')
+            raise Exception(f'Market order failed to fill: {order} ')
 
 
 
