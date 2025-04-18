@@ -255,7 +255,7 @@ def main():
             choice = questionary.select(
                         "Select work mode:",
                         choices=[
-                            "Get polymarket deposit addresses", 
+                            "Get polymarket deposit addresses [under construction]", 
                             "Deposit to polymarket with binance",
                             #"Deposit to polymarket via relay",
                             "Approve deposit and enable trading",
@@ -265,8 +265,8 @@ def main():
                             "Place bets",
                             "Drop all positions",
                             "Claim all bets",
-                            "Withdraw from polymarket to Polygon", 
-                            "withdraw from Polygon to CEX",
+                            "Withdraw from polymarket to Polygon [under construction]", 
+                            "withdraw from Polygon to CEX [under construction]",
                             "Check stats",
                             'Check open positions',
                             'Change nicknames',
